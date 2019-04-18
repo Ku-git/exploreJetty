@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?> 
+<beans:beans xmlns="http://www.springframework.org/schema/security"
+    xmlns:beans="http://www.springframework.org/schema/beans"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:context="http://www.springframework.org/schema/context" 
+    xmlns:security="http://www.springframework.org/schema/security"
+    xsi:schemaLocation="http://www.springframework.org/schema/beans
+        http://www.springframework.org/schema/beans/spring-beans-3.2.xsd
+        http://www.springframework.org/schema/security http://www.springframework.org/schema/security/spring-security-3.2.xsd
+        http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.2.xsd">
+	
+    
+    <http security="none" pattern="/css/**" />
+    <http security="none" pattern="/images/**" />
+    <http security="none" pattern="/scripts/**" />
+    <http security="none" pattern="/PWDGEN/**" />
+	
+	<security:global-method-security secured-annotations="enabled"/>
+
+    <beans:bean id="customfilt" class="com.iisi.gl.filter.ExUsernamePasswordAuthenticationFilter">
+    	<beans:property name="authenticationManager" ref="authenticationManager" />
+    	<beans:property name="filterProcessesUrl" value="/j_spring_security_check"/>
+    	<beans:property name="usernameParameter" value="username"/>
+    	<beans:property name="passwordParameter" value="password"/>
+    	<beans:property name="authenticationFailureHandler">
+        	<beans:bean class="org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler">
+            	<beans:property name="defaultFailureUrl" value="/?error=1"/>       
+        	</beans:bean>
+    	</beans:property>
+    	<beans:property name="sessionAuthenticationStrategy" ref="sas" />
+    </beans:bean>
+    
+    <beans:bean id="sessionRegistry" class="org.springframework.security.core.session.SessionRegistryImpl"/>
+    <beans:bean id="sas" class="org.springframework.security.web.authentication.session.ConcurrentSessionControlStrategy">
+    	<beans:constructor-arg name="sessionRegistry" ref="sessionRegistry" />
+    	<beans:property name="maximumSessions" value="1" />
+    </beans:bean>
+    
+    <beans:bean id="loginUrlAuthenticationEntryPoint" class="org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint">
+    	<beans:property name="loginFormUrl" value="/"/>
+	</beans:bean>
+    
+    <http create-session="always" use-expressions="true" auto-config="false" entry-point-ref="loginUrlAuthenticationEntryPoint">
+         <intercept-url pattern="/" access="permitAll"/>
+         <intercept-url pattern="/**" access="hasRole('ROLE_USER')"/> 
+          
+         <custom-filter  ref="concurrencyFilter" position="CONCURRENT_SESSION_FILTER" />
+         <custom-filter  ref="customfilt" position="FORM_LOGIN_FILTER"/>
+
+         <logout logout-url="/j_spring_security_logout"/>
+         <logout invalidate-session="true" logout-success-url="/" />
+    </http>  
+    
+<!--          <beans:bean id="passwordEncoder" class="org.springframework.security.crypto.password.NoOpPasswordEncoder" /> -->
+    <beans:bean id="passwordEncoder" class="org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder" /> 
+    <authentication-manager alias="authenticationManager">
+        <authentication-provider user-service-ref="SecurityManager">
+            <!-- password-encoder 以及 salt-source bean 定義在 core-context.xml 因 service 層也有用到 -->
+             <password-encoder ref="passwordEncoder">
+                <!-- 若有建立 SaltSource 實體時再把以下反註解 -->
+                <!-- <salt-source ref="saltSource" /> -->
+            </password-encoder>
+        </authentication-provider>
+    </authentication-manager>
+    
+	<beans:bean id="concurrencyFilter" class="org.springframework.security.web.session.ConcurrentSessionFilter">
+    	<beans:property name="sessionRegistry" ref="sessionRegistry" />
+    	<beans:property name="expiredUrl" value="/?error=expired" />
+	  	<beans:property name="logoutHandlers">
+	  		<beans:list> 
+                <beans:ref local="logoutHandler" /> 
+            </beans:list>
+      	</beans:property>  
+  	</beans:bean>
+  	
+  	<beans:bean id="logoutHandler" class="org.springframework.security.web.authentication.logout.SecurityContextLogoutHandler">  
+        <beans:property name="InvalidateHttpSession" value="true" />  
+    </beans:bean>
+    
+    <beans:bean id="SecurityManager" class="com.iisi.core.service.impl.SecurityManager" />
+</beans:beans>
